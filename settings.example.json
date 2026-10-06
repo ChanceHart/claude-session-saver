@@ -5,12 +5,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/save_session.py\"",
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/save_session.py\" hook",
             "timeout": 60,
             "async": true
           }
         ]
       }
     ]
+  },
+  "env": {
+    "SESSION_SAVER_DIR": "Journal/Sessions/Transcripts"
   }
 }

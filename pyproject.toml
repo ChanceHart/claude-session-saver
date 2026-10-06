@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-session-saver"
+version = "1.0.0"
+description = "A Claude Code hook that saves every AI session as a clean, searchable Markdown note."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Chance Hart" }]
+keywords = ["claude", "claude-code", "hooks", "obsidian", "markdown", "ai-agents"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Environment :: Console",
+  "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/ChanceHart/claude-session-saver"
+Issues = "https://github.com/ChanceHart/claude-session-saver/issues"
+Author = "https://chancehart.github.io"
+
+[project.scripts]
+claude-session-saver = "save_session:cli"
+
+[tool.setuptools]
+py-modules = ["save_session"]
