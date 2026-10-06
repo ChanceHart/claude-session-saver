@@ -11,7 +11,7 @@ Privacy by design:
     replaced with [REDACTED] before anything is written
 
 Commands:
-  claude-session-saver install [--global] [--project PATH] [--dir DIR]
+  claude-session-saver install [--global] [--project PATH] [--dir DIR] [--portable]
   claude-session-saver uninstall [--global] [--project PATH]
   claude-session-saver backfill [--project PATH] [--dir DIR]
   claude-session-saver hook        (what Claude Code runs; reads JSON on stdin)
@@ -36,7 +36,7 @@ import shutil
 import sys
 from typing import Iterable
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 DEFAULT_DIR = os.path.join("Journal", "Sessions", "Transcripts")
 HOOK_MARKERS = ("save_session.py", "claude-session-saver")
@@ -220,6 +220,29 @@ def hook_command() -> str:
     return f'"{sys.executable}" "{os.path.abspath(__file__)}" hook'
 
 
+PORTABLE_REL = os.path.join(".claude", "hooks", "save_session.py")
+
+
+def portable_command() -> str:
+    """A command that works on any machine the project is synced or cloned to."""
+    py = "python" if os.name == "nt" else "python3"
+    return f'{py} "$CLAUDE_PROJECT_DIR/.claude/hooks/save_session.py" hook'
+
+
+def copy_into_project(project: str | None) -> tuple[str, str | None]:
+    """Copy this script into <project>/.claude/hooks/. Returns (dest, backup)."""
+    dest = os.path.join(os.path.abspath(project or os.getcwd()), PORTABLE_REL)
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    backup = None
+    src = os.path.abspath(__file__)
+    if os.path.exists(dest) and os.path.abspath(dest) != src:
+        backup = dest + ".bak-" + _dt.datetime.now().strftime("%Y%m%d%H%M%S")
+        shutil.copy2(dest, backup)
+    if os.path.abspath(dest) != src:
+        shutil.copy2(src, dest)
+    return dest, backup
+
+
 def _is_ours(hook: dict) -> bool:
     return any(m in str(hook.get("command", "")) for m in HOOK_MARKERS)
 
@@ -247,12 +270,22 @@ def _write_settings(path: str, data: dict) -> str | None:
 
 
 def install(project: str | None = None, global_: bool = False, notes_dir: str | None = None,
-            dry_run: bool = False) -> dict:
-    """Add (or update) the Stop hook in settings.json. Safe to run more than once."""
+            dry_run: bool = False, portable: bool = False, footer: str | None = None) -> dict:
+    """Add (or update) the Stop hook in settings.json. Safe to run more than once.
+
+    portable=True copies the script into the project and uses $CLAUDE_PROJECT_DIR,
+    so the settings keep working when the project is synced or committed to git.
+    """
+    if portable and global_:
+        raise ValueError("--portable is for project installs (it copies the script into the project)")
     path = settings_path(project, global_)
     data = _load(path)
     stop = data.setdefault("hooks", {}).setdefault("Stop", [])
-    ours = {"type": "command", "command": hook_command(), "timeout": 60, "async": True}
+    script_backup = None
+    if portable and not dry_run:
+        _, script_backup = copy_into_project(project)
+    command = portable_command() if portable else hook_command()
+    ours = {"type": "command", "command": command, "timeout": 60, "async": True}
 
     replaced = False
     for group in stop:
@@ -265,9 +298,12 @@ def install(project: str | None = None, global_: bool = False, notes_dir: str | 
         stop.append({"hooks": [ours]})
     if notes_dir:
         data.setdefault("env", {})["SESSION_SAVER_DIR"] = notes_dir
+    if footer:
+        data.setdefault("env", {})["SESSION_SAVER_FOOTER"] = footer
 
     backup = None if dry_run else _write_settings(path, data)
-    return {"settings": path, "backup": backup, "updated": replaced, "data": data}
+    return {"settings": path, "backup": backup, "updated": replaced, "data": data,
+            "script_backup": script_backup}
 
 
 def uninstall(project: str | None = None, global_: bool = False) -> dict:
@@ -287,7 +323,10 @@ def uninstall(project: str | None = None, global_: bool = False) -> dict:
         data["hooks"].pop("Stop", None)
         if not data["hooks"]:
             data.pop("hooks")
-    if data.get("env", {}).pop("SESSION_SAVER_DIR", None) is not None and not data["env"]:
+    env = data.get("env", {})
+    for key in ("SESSION_SAVER_DIR", "SESSION_SAVER_FOOTER"):
+        env.pop(key, None)
+    if "env" in data and not env:
         data.pop("env")
     backup = _write_settings(path, data) if removed else None
     return {"settings": path, "backup": backup, "removed": removed}
@@ -332,6 +371,9 @@ def cli(argv: list[str] | None = None) -> int:
     p.add_argument("--global", dest="global_", action="store_true", help="install for every project (~/.claude)")
     p.add_argument("--project", help="project folder (default: current folder)")
     p.add_argument("--dir", dest="notes_dir", help="notes folder (default: Journal/Sessions/Transcripts)")
+    p.add_argument("--portable", action="store_true",
+                   help="copy the script into the project; settings work on any machine (synced or git-shared projects)")
+    p.add_argument("--footer", help='line under each note title, e.g. "See also: [[Index]]"')
     p.add_argument("--dry-run", action="store_true", help="show the result without writing")
 
     u = sub.add_parser("uninstall", help="remove the hook from settings.json")
@@ -355,13 +397,21 @@ def cli(argv: list[str] | None = None) -> int:
         return 0
 
     if args.cmd == "install":
-        r = install(args.project, args.global_, args.notes_dir, args.dry_run)
+        try:
+            r = install(args.project, args.global_, args.notes_dir, args.dry_run, args.portable, args.footer)
+        except ValueError as exc:
+            print(f"claude-session-saver: {exc}", file=sys.stderr)
+            return 2
         if args.dry_run:
             print(json.dumps(r["data"], indent=2))
             return 0
         print(f"{'Updated' if r['updated'] else 'Installed'} the hook in {r['settings']}")
         if r["backup"]:
             print(f"Backup of the previous settings: {r['backup']}")
+        if r.get("script_backup"):
+            print(f"Backup of the previous hook script: {r['script_backup']}")
+        if args.portable:
+            print("Portable mode: the script was copied to .claude/hooks/save_session.py")
         print("Notes will be saved to:", args.notes_dir or os.environ.get("SESSION_SAVER_DIR", DEFAULT_DIR),
               "(relative to each project)" if not os.path.isabs(args.notes_dir or "x") else "")
         return 0

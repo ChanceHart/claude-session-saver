@@ -186,6 +186,26 @@ class InstallTests(unittest.TestCase):
             self.assertEqual(commands, ["echo keep"])
             self.assertNotIn("env", data)
 
+    def test_portable_install_copies_script_and_uses_project_dir(self):
+        with tempfile.TemporaryDirectory() as d:
+            hooks = os.path.join(d, ".claude", "hooks")
+            os.makedirs(hooks)
+            old = os.path.join(hooks, "save_session.py")
+            with open(old, "w", encoding="utf-8") as f:
+                f.write("# old version")
+            r = ss.install(project=d, portable=True, footer="See [[Index]]")
+            self.assertTrue(r["script_backup"] and os.path.exists(r["script_backup"]))  # old script kept
+            with open(old, encoding="utf-8") as f:
+                self.assertIn("__version__", f.read())  # new script copied in
+            cmd = r["data"]["hooks"]["Stop"][0]["hooks"][0]["command"]
+            self.assertIn("$CLAUDE_PROJECT_DIR/.claude/hooks/save_session.py", cmd)
+            self.assertNotIn(d, cmd)  # no machine-specific path
+            self.assertEqual(r["data"]["env"]["SESSION_SAVER_FOOTER"], "See [[Index]]")
+
+    def test_portable_global_is_rejected(self):
+        with self.assertRaises(ValueError):
+            ss.install(global_=True, portable=True, dry_run=True)
+
     def test_global_install_uses_claude_config_dir(self):
         with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": d}):
             r = ss.install(global_=True)

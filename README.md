@@ -24,7 +24,11 @@ cd your-project
 claude-session-saver install
 ```
 
-That's it. Talk to Claude, and notes appear in `Journal/Sessions/Transcripts/`. Want your past sessions too?
+That's it. Talk to Claude, and notes appear in `Journal/Sessions/Transcripts/`.
+
+> **Project synced across computers (OneDrive, Dropbox, iCloud) or shared in git?** Use `claude-session-saver install --portable`. It copies the script into the project and uses `$CLAUDE_PROJECT_DIR`, so the same settings work on every machine.
+
+Want your past sessions too?
 
 ```bash
 claude-session-saver backfill
@@ -63,7 +67,9 @@ flowchart LR
 |---|---|
 | `claude-session-saver install` | Add the hook to this project's `.claude/settings.json` |
 | `claude-session-saver install --global` | Add it for **every** project (`~/.claude/settings.json`) |
+| `claude-session-saver install --portable` | Copy the script into the project so the settings work on any machine (synced folders, git) |
 | `claude-session-saver install --dir "Notes/AI"` | Choose the notes folder (relative to the project, or an absolute path) |
+| `claude-session-saver install --footer "See also: [[Index]]"` | Add a backlink line under each note's title |
 | `claude-session-saver install --dry-run` | Show the resulting settings without writing anything |
 | `claude-session-saver backfill` | Save notes for all past sessions of this project |
 | `claude-session-saver uninstall` | Remove the hook (other settings and hooks are left alone) |
@@ -114,7 +120,7 @@ _Tools used: Bash, Edit, Read_
 python -m unittest discover tests -v
 ```
 
-22 tests cover what matters most: tool output and system blocks never reach a note, secrets are redacted, corrupt lines are tolerated, one file is kept per session, atomic writes leave nothing behind, and `install` merges safely, backs up, and never duplicates itself. CI runs them on **Windows, macOS and Linux** with Python 3.9, 3.11 and 3.13.
+24 tests cover what matters most: tool output and system blocks never reach a note, secrets are redacted, corrupt lines are tolerated, one file is kept per session, atomic writes leave nothing behind, and `install` merges safely, backs up, never duplicates itself, and writes machine-independent settings in portable mode. CI runs them on **Windows, macOS and Linux** with Python 3.9, 3.11 and 3.13.
 
 ## Design decisions
 
@@ -122,7 +128,8 @@ python -m unittest discover tests -v
 - **Why drop tool output?** It can contain file contents, credentials or API responses. The conversation is what's worth keeping; everything else stays out of the notes and out of cloud sync.
 - **Why redact on top of that?** People paste keys into chats. Redaction catches the common formats before they're written to a synced folder.
 - **Why atomic writes?** Notes live in synced folders. Writing in place lets a sync client upload a half-written file; `os.replace` makes the swap all-or-nothing.
-- **Why absolute paths in the installed hook?** `install` points the hook at the exact Python that installed it, so it works no matter whether your system calls it `python`, `python3` or `py`.
+- **Why absolute paths in the installed hook?** By default, `install` points the hook at the exact Python that installed it, so it works whether your system calls it `python`, `python3` or `py`.
+- **Why a portable mode?** Absolute paths break when a project is synced to another computer or committed to git. `--portable` keeps the script inside the project and uses `$CLAUDE_PROJECT_DIR` instead. (I found this using the tool on my own OneDrive-synced vault.)
 - **Why exit 0 on errors?** A note-taking hook must never interrupt your work. Problems are printed to stderr instead.
 
 ## About
