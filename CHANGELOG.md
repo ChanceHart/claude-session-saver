@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.1 (2026-10-06)
+- **Fix:** notes are always saved under the project root. Before, if Claude changed into a subfolder (`cd src`), the hook used that folder and scattered notes into nested `Journal/` folders, even inside other git repos. Found on my own vault: one stray note landed in a website repo's working tree (it was caught before any commit).
+- The project root (`$CLAUDE_PROJECT_DIR`) now takes priority over the hook's `cwd`. New regression test (25 tests).
+- Tests clear `CLAUDE_PROJECT_DIR` so running them inside a Claude Code session can't write into the real project.
+
 ## 1.1.0 (2026-10-05)
 - **`install --portable`:** copies the script into the project (backing up any older copy) and uses `$CLAUDE_PROJECT_DIR`, so settings work on every machine a project is synced or cloned to. Found while installing on a OneDrive-synced vault.
 - **`install --footer`:** sets the backlink line under each note title.

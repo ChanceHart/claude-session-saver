@@ -120,7 +120,7 @@ _Tools used: Bash, Edit, Read_
 python -m unittest discover tests -v
 ```
 
-24 tests cover what matters most: tool output and system blocks never reach a note, secrets are redacted, corrupt lines are tolerated, one file is kept per session, atomic writes leave nothing behind, and `install` merges safely, backs up, never duplicates itself, and writes machine-independent settings in portable mode. CI runs them on **Windows, macOS and Linux** with Python 3.9, 3.11 and 3.13.
+25 tests cover what matters most: tool output and system blocks never reach a note, secrets are redacted, corrupt lines are tolerated, one file is kept per session, atomic writes leave nothing behind, and `install` merges safely, backs up, never duplicates itself, and writes machine-independent settings in portable mode, and notes always land in the project root even after Claude changes folders. CI runs them on **Windows, macOS and Linux** with Python 3.9, 3.11 and 3.13.
 
 ## Design decisions
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-session-saver"
-version = "1.1.0"
+version = "1.1.1"
 description = "A Claude Code hook that saves every AI session as a clean, searchable Markdown note."
 readme = "README.md"
 requires-python = ">=3.9"

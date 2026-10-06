@@ -11,6 +11,9 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import save_session as ss  # noqa: E402
 
+# Tests run inside Claude Code sessions too; never let them write into the real project.
+os.environ.pop("CLAUDE_PROJECT_DIR", None)
+
 
 def line(**kw):
     return json.dumps(kw)
@@ -141,8 +144,20 @@ class SaveTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             tr = write_transcript(d, "t.jsonl", SAMPLE[:2])
             with mock.patch.dict(os.environ, {"SESSION_SAVER_DIR": "notes"}):
+                os.environ.pop("CLAUDE_PROJECT_DIR", None)
                 note = ss.save({"transcript_path": tr, "session_id": "s1", "cwd": d})
             self.assertEqual(os.path.dirname(note), os.path.join(d, "notes"))
+
+    def test_project_root_wins_over_subfolder_cwd(self):
+        # Regression (1.1.1): after `cd sub`, notes went to sub/Journal/... instead of the project.
+        with tempfile.TemporaryDirectory() as d:
+            sub = os.path.join(d, "sub", "deeper")
+            os.makedirs(sub)
+            tr = write_transcript(d, "t.jsonl", SAMPLE[:2])
+            with mock.patch.dict(os.environ, {"SESSION_SAVER_DIR": "notes", "CLAUDE_PROJECT_DIR": d}):
+                note = ss.save({"transcript_path": tr, "session_id": "s2", "cwd": sub})
+            self.assertEqual(os.path.dirname(note), os.path.join(d, "notes"))
+            self.assertFalse(os.path.exists(os.path.join(sub, "notes")))
 
     def test_missing_transcript_is_a_no_op(self):
         self.assertIsNone(ss.save({"transcript_path": "does-not-exist.jsonl"}))

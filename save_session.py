@@ -36,7 +36,7 @@ import shutil
 import sys
 from typing import Iterable
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 DEFAULT_DIR = os.path.join("Journal", "Sessions", "Transcripts")
 HOOK_MARKERS = ("save_session.py", "claude-session-saver")
@@ -171,7 +171,9 @@ def write_atomic(path: str, text: str) -> None:
 # ------------------------------------------------------------------ saving ---
 
 def output_dir(payload: dict) -> str:
-    base = payload.get("cwd") or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
+    # The project root wins: payload "cwd" follows `cd` into subfolders, which
+    # scattered notes into nested Journal/ folders.
+    base = os.environ.get("CLAUDE_PROJECT_DIR") or payload.get("cwd") or os.getcwd()
     target = os.path.expanduser(os.environ.get("SESSION_SAVER_DIR", DEFAULT_DIR))
     return target if os.path.isabs(target) else os.path.join(base, target)
 
